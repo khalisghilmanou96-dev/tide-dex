@@ -1,0 +1,36 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TideDex 🌊 — NOAA</title><style>
+:root{--bg:#04151c;--p:#0a2732;--p2:#103844;--txt:#f2fdff;--mut:#91bdc7;--a:#36d6d0;--b:#ffd166;--line:#1c5360}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#145263 0,transparent 32%),var(--bg);color:var(--txt);font:15px system-ui,sans-serif}.wrap{max-width:1200px;margin:auto;padding:22px}header{display:flex;justify-content:space-between;align-items:center}.logo{font-size:27px;font-weight:1000}.logo b{color:var(--a)}.pill{border:1px solid var(--line);border-radius:99px;padding:8px 12px;color:var(--mut)}
+.hero{margin:22px 0;padding:32px;border:1px solid var(--line);border-radius:25px;background:linear-gradient(125deg,#0d3541,#126177)}h1{font-size:clamp(39px,6vw,68px);line-height:.94;margin:0}.hero p{color:var(--mut);font-size:17px;max-width:780px}.controls{display:flex;gap:9px;flex-wrap:wrap;margin:18px 0}select,button{padding:12px 14px;border-radius:12px;font:inherit}select{background:var(--p);border:1px solid var(--line);color:var(--txt);min-width:260px}button{border:0;background:var(--a);color:#032326;font-weight:900;cursor:pointer}.secondary{background:var(--p2);color:var(--txt);border:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin:15px 0}.stat{background:var(--p);border:1px solid var(--line);border-radius:16px;padding:15px}.stat span{display:block;color:var(--mut)}.stat b{font-size:23px}.status{color:var(--mut);margin:12px 0}.layout{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}.panel{background:var(--p);border:1px solid var(--line);border-radius:19px;padding:17px}h2{margin-top:0}.chart{height:280px;display:flex;align-items:end;gap:4px;border-bottom:1px solid var(--line);padding-top:20px;overflow:hidden}.bar{flex:1;min-width:4px;background:linear-gradient(var(--a),#176b78);border-radius:5px 5px 0 0;position:relative}.bar:hover:after{content:attr(data-v);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#001016;padding:5px;border-radius:6px;white-space:nowrap;font-size:11px}.tides{display:grid;gap:8px}.tide{display:flex;justify-content:space-between;background:var(--p2);padding:11px;border-radius:11px}.high{color:var(--b)}.low{color:var(--a)}footer{margin-top:28px;border-top:1px solid var(--line);padding:20px 0;color:#6d9ca6}@media(max-width:760px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.pill{display:none}}
+</style></head><body><div class="wrap"><header><div class="logo">TIDE<b>DEX</b> 🌊</div><div class="pill">NOAA CO-OPS · sans clé</div></header>
+<section class="hero"><h1>Marées &<br>données océaniques.</h1><p>Consulte les niveaux d'eau observés et les prévisions de marée des stations côtières NOAA.</p></section>
+<div class="controls"><select id="station"><option value="9414290">San Francisco, CA</option><option value="8518750">The Battery, New York, NY</option><option value="8724580">Key West, FL</option><option value="8720218">Mayport, FL</option><option value="9447130">Seattle, WA</option><option value="9410660">Los Angeles, CA</option><option value="1612340">Honolulu, HI</option><option value="8638610">Sewells Point, VA</option><option value="8665530">Charleston, SC</option><option value="8443970">Boston, MA</option></select><button id="load">Actualiser</button><button id="pred" class="secondary">Prévisions 48 h</button></div>
+<div id="status" class="status">Chargement NOAA…</div>
+<div class="stats"><div class="stat"><span>Niveau actuel</span><b id="level">—</b></div><div class="stat"><span>Température eau</span><b id="temp">—</b></div><div class="stat"><span>Prochaine marée haute</span><b id="high">—</b></div><div class="stat"><span>Prochaine marée basse</span><b id="low">—</b></div></div>
+<div class="layout"><section class="panel"><h2>Niveau d'eau · dernières 24 h</h2><div id="chart" class="chart"></div></section><section class="panel"><h2>Marées prévues · 48 h</h2><div id="tides" class="tides"></div></section></div>
+<footer>TideDex · NOAA Center for Operational Oceanographic Products and Services (CO-OPS).</footer></div>
+<script>
+const $=s=>document.querySelector(s),API="https://api.tidesandcurrents.noaa.gov/api/prod/datagetter";
+async function get(params){params.set("application","TideDex");params.set("format","json");params.set("units","metric");params.set("time_zone","lst_ldt");const r=await fetch(API+"?"+params);if(!r.ok)throw Error(r.status);const d=await r.json();if(d.error)throw Error(d.error.message);return d}
+function fmt(v,d=2){return Number(v).toLocaleString("fr-FR",{maximumFractionDigits:d})}
+async function load(){
+ const st=$("#station").value;$("#status").textContent="Chargement des données NOAA…";
+ try{
+  const [wl,pr,wt]=await Promise.allSettled([
+   get(new URLSearchParams({product:"water_level",station:st,range:"24",datum:"MLLW"})),
+   get(new URLSearchParams({product:"predictions",station:st,range:"48",datum:"MLLW",interval:"hilo"})),
+   get(new URLSearchParams({product:"water_temperature",station:st,range:"24"}))
+  ]);
+  if(wl.status==="fulfilled"&&wl.value.data?.length){const a=wl.value.data;$("#level").textContent=fmt(a.at(-1).v)+" m";draw(a)}
+  else{$("#level").textContent="—";$("#chart").innerHTML="<span>Donnée indisponible</span>"}
+  if(wt.status==="fulfilled"&&wt.value.data?.length)$("#temp").textContent=fmt(wt.value.data.at(-1).v,1)+" °C";else $("#temp").textContent="—";
+  if(pr.status==="fulfilled"){const p=pr.value.predictions||[];renderTides(p);const h=p.find(x=>x.type==="H"),l=p.find(x=>x.type==="L");$("#high").textContent=h?fmt(h.v)+" m":"—";$("#low").textContent=l?fmt(l.v)+" m":"—"}else{$("#high").textContent=$("#low").textContent="—";$("#tides").innerHTML="Prévisions indisponibles pour cette station."}
+  $("#status").textContent=$("#station").selectedOptions[0].text+" · données NOAA actualisées";
+ }catch(e){$("#status").textContent="Impossible de charger les données NOAA pour le moment."}
+}
+function draw(a){const vals=a.map(x=>+x.v).filter(Number.isFinite);if(!vals.length)return;const min=Math.min(...vals),max=Math.max(...vals),span=max-min||1;$("#chart").innerHTML=a.filter((_,i)=>i%3===0).map(x=>{const h=12+((+x.v-min)/span)*88;return `<div class="bar" style="height:${h}%" data-v="${fmt(x.v)} m · ${x.t.slice(11)}"></div>`}).join("")}
+function renderTides(p){$("#tides").innerHTML=p.slice(0,12).map(x=>`<div class="tide"><span class="${x.type==="H"?"high":"low"}">${x.type==="H"?"▲ Haute":"▼ Basse"}</span><b>${fmt(x.v)} m</b><span>${x.t.slice(5)}</span></div>`).join("")}
+$("#load").onclick=load;$("#pred").onclick=load;$("#station").onchange=load;load();
+</script></body></html>
